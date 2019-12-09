@@ -1,0 +1,12 @@
+window size 7
+numdisp 16
+blocksize 11
+
+
+Light 
+11 - close to right cam same height, no umbrella - main lights on
+12 - 2 light sources, same as above + one above cameras - 0 umbrella - main lights on
+13 - window size 11, numdisp 32, same light as 11
+15 - windowsize 7, blocksize 5 numdisp 16, same as 11
+16 - windowsize 5
+17 - windowsize 3
