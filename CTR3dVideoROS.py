@@ -5,7 +5,12 @@ from mpl_toolkits.mplot3d import Axes3D
 from math import sqrt
 import scipy
 import rospy
-from std_msgs.msg import Float64
+# from CTR_GUI import CTR_GUI
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge, CvBridgeError
+from geometry_msgs.msg import Vector3, Point32
+from sensor_msgs.msg import PointCloud as PC
+
 
 ###############################################################################################
 ################################### PRE-PROCESSING ############################################
@@ -274,6 +279,9 @@ def find3dCoords(xyL, xyR):
 
     return X, Y, Z, orientNorm
 
+def callback(data):
+    cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
+
 ###############################################################################################
 ################################### 3D RECONSTRUCTION  ########################################
 ###############################################################################################
@@ -281,8 +289,35 @@ def find3dCoords(xyL, xyR):
 if __name__ == '__main__':
 
     while not rospy.is_shutdown():
-        cap1 = cv2.VideoCapture(0)
-        cap2 = cv2.VideoCapture(1)
+        rospy.init_node('CTR3dVideoROS')
+
+        # cam1 = rospy.Subscriber("camera1", Image, callback)
+        # cam2 = rospy.Subscriber("camera2", Image, callback)
+
+        cap1 = cv2.VideoCapture("outCam13.avi")
+        cap2 = cv2.VideoCapture("outCam23.avi")
+
+        # cap1 = cv2.imread(cam1)
+        # cap2 = cv2.imread(cam2)
+
+        # data from GUI
+        gui = CTR_GUI
+        # source = str(gui.source.text())
+        origDisp = gui.original
+        threshDisp = gui.threshold
+        markedDisp = gui.marked
+
+        # C1 = np.load(source + '/camMtx1.npy')
+        # C2 = np.load(source + '/camMtx2.npy')
+        # d1 = np.load(source + '/distCoeffs1.npy')
+        # d2 = np.load(source + '/distCoeffs2.npy')
+        #
+        # R1 = np.load(source + '/R1.npy')
+        # P1 = np.load(source + '/P1.npy')
+        # R2 = np.load(source + '/R2.npy')
+        # P2 = np.load(source + '/P2.npy')
+        # Q = np.load(source + '/Q.npy')
+        # T = np.load(source + '/Transl.npy')
 
         # check fps of camera
         fps = cap1.get(cv2.CAP_PROP_FPS)
@@ -296,142 +331,191 @@ if __name__ == '__main__':
         ###############################################################################################
 
             # converting images tog rayscale
-            gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-            gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+            if img1.all() != None:
+                gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+                gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
 
-            # rectification of the stereo images
-            mapL1, mapL2 = cv2.initUndistortRectifyMap(C1, d1, R1, P1, gray1.shape[::-1], cv2.CV_32FC1)
-            mapR1, mapR2 = cv2.initUndistortRectifyMap(C2, d2, R2, P2, gray2.shape[::-1], cv2.CV_32FC1)
+                # rectification of the stereo images
+                mapL1, mapL2 = cv2.initUndistortRectifyMap(C1, d1, R1, P1, gray1.shape[::-1], cv2.CV_32FC1)
+                mapR1, mapR2 = cv2.initUndistortRectifyMap(C2, d2, R2, P2, gray2.shape[::-1], cv2.CV_32FC1)
 
-            undistRect1 = cv2.remap(gray1, mapL1, mapL2, cv2.INTER_LINEAR, borderValue = 255)
-            undistRect2 = cv2.remap(gray2, mapR1, mapR2, cv2.INTER_LINEAR, borderValue = 255)
+                undistRect1 = cv2.remap(gray1, mapL1, mapL2, cv2.INTER_LINEAR, borderValue = 255)
+                undistRect2 = cv2.remap(gray2, mapR1, mapR2, cv2.INTER_LINEAR, borderValue = 255)
 
-            # Thresholding the rectified images
-            ret, undistRectThresh1 = cv2.threshold(undistRect1, 90, 255, cv2.THRESH_BINARY)
-            ret, undistRectThresh2 = cv2.threshold(undistRect2, 90, 255, cv2.THRESH_BINARY)
+                # Thresholding the rectified images
+                ret, undistRectThresh1 = cv2.threshold(undistRect1, 100, 255, cv2.THRESH_BINARY)
+                ret, undistRectThresh2 = cv2.threshold(undistRect2, 105, 255, cv2.THRESH_BINARY)
 
-            # crop thresholded and rectified images
-            undistRectThresh1 = undistRectThresh1[130:400, :]
-            undistRectThresh2 = undistRectThresh2[130:400, :]
+                # crop thresholded and rectified images
+                undistRectThresh1 = undistRectThresh1[0:300, :]
+                undistRectThresh2 = undistRectThresh2[0:320, :]
 
-            # change to BGR
-            undistRect1 = cv2.cvtColor(undistRect1, cv2.COLOR_GRAY2BGR)
-            undistRect1 = undistRect1[130:400, :]
+                # change to BGR
+                undistRect1 = cv2.cvtColor(undistRect1, cv2.COLOR_GRAY2BGR)
+                undistRect1 = undistRect1[0:300, :]
 
-            undistRect2 = cv2.cvtColor(undistRect2, cv2.COLOR_GRAY2BGR)
-            undistRect2 = undistRect2[130:400, :]
+                undistRect2 = cv2.cvtColor(undistRect2, cv2.COLOR_GRAY2BGR)
+                undistRect2 = undistRect2[0:300, :]
 
-            # display original and undistorted rectified images
-            cv2.imshow('l', undistRectThresh1)
-            cv2.imshow('r', undistRectThresh2)
-            cv2.imshow('left original', img1)
-            cv2.imshow('right original', img2)
+                # display original and undistorted rectified images
+                cv2.imshow('l', undistRectThresh1)
+                cv2.imshow('r', undistRectThresh2)
+                cv2.imshow('left original', img1)
+                cv2.imshow('right original', img2)
 
-            # finding robot coordinates
-            # origin points
-            x0L = findOrigin(undistRectThresh1, undistRect1)
-            x0R = findOrigin(undistRectThresh2, undistRect2)
+                # cv2.waitKey(0)
 
-            # find all the centerline points
-            xL = findCenterPolar(undistRect1, undistRectThresh1, x0L)
-            xR = findCenterPolar(undistRect2, undistRectThresh2, x0R)
+                # if origDisp == True:
+                #
+                #     cv2.imshow('Left image', img1)
+                #     cv2.imshow('Right image', img2)
+                #     cv2.waitKey(0)
+                #
+                # if threshDisp == True:
+                #
+                #     cv2.imshow('Left thresholded rectified', undistRectThresh1)
+                #     cv2.imshow('Right thresholded rectified', undistRectThresh2)
+                #     cv2.waitKey(0)
 
-            # # find the width values along the robot and applying median filter on dataset
-            w1 = findWidthVect(undistRectThresh1, xL, undistRect1)
-            w2 = findWidthVect(undistRectThresh2, xR, undistRect2)
+                # finding robot coordinates
+                # origin points
+                x0L = findOrigin(undistRectThresh1, undistRect1)
+                x0R = findOrigin(undistRectThresh2, undistRect2)
 
-            # # # find the threshold values to find the width reduction --> find joint points
-            th11, th12, movingAvg1 = findThresholdValues(w1, 6)
-            th21, th22, movingAvg2 = findThresholdValues(w2, 4)
+                # find all the centerline points
+                xL = findCenterPolar(undistRect1, undistRectThresh1, x0L)
+                xR = findCenterPolar(undistRect2, undistRectThresh2, x0R)
 
-            # # # find the two joint and the tip points
-            joint11, joint12, tip1 = findJointPoints(movingAvg1, xL[:,0], xL[:,1], th11, th12, undistRect1)
-            joint21, joint22, tip2 = findJointPoints(movingAvg2, xR[:,0], xR[:,1], th21, th22, undistRect2)
+                # # find the width values along the robot and applying median filter on dataset
+                w1 = findWidthVect(undistRectThresh1, xL, undistRect1)
+                w2 = findWidthVect(undistRectThresh2, xR, undistRect2)
 
-            # find the midpoints of left tube
-            x1L = findMidPoints(undistRectThresh1, x0L, joint11,  undistRect1)
-            x3L = findMidPoints(undistRectThresh1, joint11, joint12, undistRect1)
-            x5L = findMidPoints(undistRectThresh1, joint12, tip1, undistRect1)
-            #
-            # # # find the midpoints of right tube
-            x1R = findMidPoints(undistRectThresh2, x0R, joint21, undistRect2)
-            x3R = findMidPoints(undistRectThresh2, joint21, joint22, undistRect2)
-            x5R = findMidPoints(undistRectThresh2, joint22, tip2, undistRect2)
-            #
-            # find additional points on left tube
-            x2L = findMidPoints(undistRectThresh1, joint11, x1L,  undistRect1)
-            x4L = findMidPoints(undistRectThresh1, x0L, x1L,  undistRect1)
-            x6L = findMidPoints(undistRectThresh1, joint11, x3L,  undistRect1)
-            x8L = findMidPoints(undistRectThresh1, joint12, x3L,  undistRect1)
-            x9L = findMidPoints(undistRectThresh1, joint12, x5L, undistRect1)
-            x10L = findMidPoints(undistRectThresh1, tip1, x5L, undistRect1)
+                # # # find the threshold values to find the width reduction --> find joint points
+                th11, th12, movingAvg1 = findThresholdValues(w1, 6)
+                th21, th22, movingAvg2 = findThresholdValues(w2, 4)
 
-            # # # find additional points on right tube
-            x2R = findMidPoints(undistRectThresh2, joint21, x1R,  undistRect2)
-            x4R = findMidPoints(undistRectThresh2, x0R, x1R,  undistRect2)
-            x6R = findMidPoints(undistRectThresh2, joint21, x3R,  undistRect2)
-            x8R = findMidPoints(undistRectThresh2, joint22, x3R,  undistRect2)
-            x9R = findMidPoints(undistRectThresh2, joint22, x5R, undistRect2)
-            x10R = findMidPoints(undistRectThresh2, tip2, x5R, undistRect2)
+                # # # find the two joint and the tip points
+                joint11, joint12, tip1 = findJointPoints(movingAvg1, xL[:,0], xL[:,1], th11, th12, undistRect1)
+                joint21, joint22, tip2 = findJointPoints(movingAvg2, xR[:,0], xR[:,1], th21, th22, undistRect2)
 
-            # # collect xy coordinates of left image in 1 array [2xn]
-            xyCoordinatesL = x0L
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, x2L))
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, x1L))
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, x4L))
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, joint11))
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, x6L))
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, x3L))
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, x8L))
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, joint12))
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, x9L))
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, x5L))
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, x10L))
-            xyCoordinatesL = np.column_stack((xyCoordinatesL, tip1))
-            #
-            # # # collect xy coordinates of right image in 1 array [2xn]
-            xyCoordinatesR = x0R
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, x2R))
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, x1R))
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, x4R))
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, joint21))
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, x6R))
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, x3R))
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, x8R))
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, joint22))
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, x9R))
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, x5R))
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, x10R))
-            xyCoordinatesR = np.column_stack((xyCoordinatesR, tip2))
+                # find the midpoints of left tube
+                x1L = findMidPoints(undistRectThresh1, x0L, joint11,  undistRect1)
+                x3L = findMidPoints(undistRectThresh1, joint11, joint12, undistRect1)
+                x5L = findMidPoints(undistRectThresh1, joint12, tip1, undistRect1)
+                #
+                # # # find the midpoints of right tube
+                x1R = findMidPoints(undistRectThresh2, x0R, joint21, undistRect2)
+                x3R = findMidPoints(undistRectThresh2, joint21, joint22, undistRect2)
+                x5R = findMidPoints(undistRectThresh2, joint22, tip2, undistRect2)
+                #
+                # find additional points on left tube
+                x2L = findMidPoints(undistRectThresh1, joint11, x1L,  undistRect1)
+                x4L = findMidPoints(undistRectThresh1, x0L, x1L,  undistRect1)
+                x6L = findMidPoints(undistRectThresh1, joint11, x3L,  undistRect1)
+                x8L = findMidPoints(undistRectThresh1, joint12, x3L,  undistRect1)
+                x9L = findMidPoints(undistRectThresh1, joint12, x5L, undistRect1)
+                x10L = findMidPoints(undistRectThresh1, tip1, x5L, undistRect1)
 
-            # # # calculate 3d coordinates and plot 3D pointcloud - returns x, y, z coordinates
-            x, y, z, orient = find3dCoords(xyCoordinatesL, xyCoordinatesR)
+                # # # find additional points on right tube
+                x2R = findMidPoints(undistRectThresh2, joint21, x1R,  undistRect2)
+                x4R = findMidPoints(undistRectThresh2, x0R, x1R,  undistRect2)
+                x6R = findMidPoints(undistRectThresh2, joint21, x3R,  undistRect2)
+                x8R = findMidPoints(undistRectThresh2, joint22, x3R,  undistRect2)
+                x9R = findMidPoints(undistRectThresh2, joint22, x5R, undistRect2)
+                x10R = findMidPoints(undistRectThresh2, tip2, x5R, undistRect2)
 
-            # write 3d coordinates of joints on frame
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            # j1 = ' ' + str(np.round(np.sqrt((x[0] - x[1])**2 + (y[0] - y[1])**2 + (z[0] - z[1])**2), 2))
-            # j2 = ' ' + str(np.round(np.sqrt((x[0] - x[2])**2 + (y[0] - y[2])**2 + (z[0] - z[2])**2), 2))
-            t = ' ' + str(np.round(np.sqrt((x[0] - x[-1])**2 + (y[0] - y[-1])**2 + (z[0] - z[-1])**2), 2))
-            undistRect2 = cv2.putText(undistRect2, '  0', (p0R[0],p0R[1]),font, 0.5,(0,0,255), 1, cv2.LINE_AA)
-            # undistRect2 = cv2.putText(undistRect2, j1, (joint21[0],joint21[1]),font, 0.5,(255,0,0), 1, cv2.LINE_AA)
-            # undistRect2 = cv2.putText(undistRect2, j2, (joint22[0],joint22[1]),font, 0.5,(0,255,0), 1, cv2.LINE_AA)
-            undistRect2 = cv2.putText(undistRect2, t, (tip2[0],tip2[1]),font, 0.5,(255,255,0), 1, cv2.LINE_AA)
+                # # collect xy coordinates of left image in 1 array [2xn]
+                xyCoordinatesL = x0L
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, x2L))
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, x1L))
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, x4L))
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, joint11))
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, x6L))
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, x3L))
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, x8L))
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, joint12))
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, x9L))
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, x5L))
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, x10L))
+                xyCoordinatesL = np.column_stack((xyCoordinatesL, tip1))
+                #
+                # # # collect xy coordinates of right image in 1 array [2xn]
+                xyCoordinatesR = x0R
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, x2R))
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, x1R))
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, x4R))
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, joint21))
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, x6R))
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, x3R))
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, x8R))
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, joint22))
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, x9R))
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, x5R))
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, x10R))
+                xyCoordinatesR = np.column_stack((xyCoordinatesR, tip2))
 
-            cv2.imshow('left', undistRect1)
-            cv2.imshow('right', undistRect2)
+                # # # calculate 3d coordinates and plot 3D pointcloud - returns x, y, z coordinates
+                x, y, z, orient = find3dCoords(xyCoordinatesL, xyCoordinatesR)
+
+                # write 3d coordinates of joints on frame
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                # j1 = ' ' + str(np.round(np.sqrt((x[0] - x[1])**2 + (y[0] - y[1])**2 + (z[0] - z[1])**2), 2))
+                # j2 = ' ' + str(np.round(np.sqrt((x[0] - x[2])**2 + (y[0] - y[2])**2 + (z[0] - z[2])**2), 2))
+                # t = ' ' + str(np.round(np.sqrt((x[0] - x[-1])**2 + (y[0] - y[-1])**2 + (z[0] - z[-1])**2), 2))
+                # undistRect2 = cv2.putText(undistRect2, '  0', (p0R[0],p0R[1]),font, 0.5,(0,0,255), 1, cv2.LINE_AA)
+                # undistRect2 = cv2.putText(undistRect2, j1, (joint21[0],joint21[1]),font, 0.5,(255,0,0), 1, cv2.LINE_AA)
+                # undistRect2 = cv2.putText(undistRect2, j2, (joint22[0],joint22[1]),font, 0.5,(0,255,0), 1, cv2.LINE_AA)
+                # undistRect2 = cv2.putText(undistRect2, t, (tip2[0],tip2[1]),font, 0.5,(255,255,0), 1, cv2.LINE_AA)
+
+                # cv2.imshow('left', undistRect1)
+                # cv2.imshow('right', undistRect2)
+                # if markedDisp == True:
+                #
+                #     cv2.imshow('Left', undistRect1)
+                #     cv2.imshow('Right', undistRect2)
+                #     cv2.waitKey(0)
+
+                pub = rospy.Publisher('CTR3d', Vector3, queue_size = 1)
+                pub_arr = rospy.Publisher('tubey', PC, queue_size = 1)
+
+                pc = PC()
+                pc.header.frame_id = "LetsHopeThisWorks"
 
 
-            rospy.init_node('CTR3dVideoROS')
-            pub = rospy.Publisher('CTR3d', Float64, queue_size = 1)
-            # sub = rospy.Subscriber('', , queue_size = 1)
-            rate = rospy.Rate(10)
-            # x, y, z = find3dCoords(xyCoordinatesL, xyCoordinatesR)
-            # j1 = ' ' + str(np.round(np.sqrt((x[0] - x[1])**2 + (y[0] - y[1])**2 + (z[0] - z[1])**2), 2))
-            # j2 = ' ' + str(np.round(np.sqrt((x[0] - x[2])**2 + (y[0] - y[2])**2 + (z[0] - z[2])**2), 2))
-            t = 'tip distance: ' + ' ' + str(np.round(np.sqrt((x[0] - x[3])**2 + (y[0] - y[3])**2 + (z[0] - z[3])**2), 2))
-            pub.publish(x, y, z)
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):          #if q is pressed, close window
+                xyzROS = Vector3()
+                for i in range(0, len(x)):
+                    point = Point32()
+                    point.x = x[i]
+                    point.y = y[i]
+                    point.z = z[i]
+
+                    pc.points.append(point)
+
+
+                xyzROS.x = x[-1]
+                xyzROS.y = y[-1]
+                xyzROS.z = z[-1]
+
+                    # xyzROS.Vector3.append(vec3)
+
+                pub.publish(xyzROS)
+                pub_arr.publish(pc)
+
+                # sub = rospy.Subscriber('', , queue_size = 1)
+                rate = rospy.Rate(20)
+                # x, y, z = find3dCoords(xyCoordinatesL, xyCoordinatesR)
+                # j1 = ' ' + str(np.round(np.sqrt((x[0] - x[1])**2 + (y[0] - y[1])**2 + (z[0] - z[1])**2), 2))
+                # j2 = ' ' + str(np.round(np.sqrt((x[0] - x[2])**2 + (y[0] - y[2])**2 + (z[0] - z[2])**2), 2))
+                # t = 'tip distance: ' + ' ' + str(np.round(np.sqrt((x[0] - x[3])**2 + (y[0] - y[3])**2 + (z[0] - z[3])**2), 2))
+                # xyz = np.array([[x], [y], [z]])
+                # pub.publish(xyz)
+
+                # rospy.spin()
+
+                # if cv2.waitKey(1) & 0xFF == ord('q'):          #if q is pressed, close window
+                #     break
+            else:
                 break
 
 rate.sleep()
